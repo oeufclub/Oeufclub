@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OEUF CLUB | 10 Places. Sans Négociation.</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #000;
+            color: #D4AF37;
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            text-align: center;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .logo { font-size: 2.5rem; font-weight: 100; letter-spacing: 8px; margin-bottom: 5px; }
+        .subtitle { font-size: 0.8rem; letter-spacing: 4px; color: #666; margin-bottom: 30px; }
+        .status { font-size: 1rem; margin-bottom: 10px; color: #888; text-transform: uppercase; }
+        .timer { font-size: 3.5rem; font-weight: 100; margin-bottom: 20px; font-variant-numeric: tabular-nums; }
+        .places-box {
+            border: 1px solid #D4AF37;
+            padding: 20px 40px;
+            margin-bottom: 30px;
+        }
+        .places-label { font-size: 0.9rem; color: #888; margin-bottom: 5px; }
+        .places { font-size: 5rem; font-weight: 100; line-height: 1; color: #fff; }
+        .places-warning { font-size: 0.8rem; color: #8B0000; margin-top: 10px; height: 15px; }
+        .phone { 
+            font-size: 1.8rem; 
+            background: #D4AF37;
+            color: #000;
+            padding: 15px 30px; 
+            text-decoration: none; 
+            display: inline-block;
+            margin-bottom: 25px;
+            font-weight: 400;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.05); } }
+        .rules { font-size: 0.75rem; color: #555; line-height: 1.8; max-width: 320px; }
+        .ferme { display: none; }
+        .ferme-title { font-size: 3rem; color: #8B0000; font-weight: 100; margin-bottom: 20px; }
+        .ferme-text { font-size: 1rem; color: #666; }
+        .blink { animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.3; } }
+    </style>
+</head>
+<body>
+    <div id="ouvert">
+        <div class="logo">OEUF CLUB</div>
+        <div class="subtitle">LE BRUN. SANS REPROCHE.</div>
+        
+        <div class="status" id="status">OUVERTURE DANS</div>
+        <div class="timer blink" id="timer">00:00:00</div>
+        
+        <div class="places-box">
+            <div class="places-label">PLAQUETTES DISPONIBLES</div>
+            <div class="places" id="places">10</div>
+            <div class="places-warning" id="warning"></div>
+        </div>
+        
+        <a href="tel:+22606715821" class="phone" id="phoneBtn">APPELER MAINTENANT</a>
+        
+        <div class="rules">
+            4 000 FCFA / PLAQUETTE SCELLÉE<br>
+            APPEL SEULEMENT 6H00 - 8H00<br>
+            QUAND LE COMPTEUR = 0, C’EST FINI<br>
+            LE 1% NE RAPPELLE PAS 2 FOIS
+        </div>
+    </div>
+
+    <div class="ferme" id="ferme">
+        <div class="ferme-title">COMPLET</div>
+        <div class="ferme-text">
+            10 plaquettes. 10 Rois.<br>
+            Prochaine ouverture : Dimanche 6h00<br><br>
+            Tu étais où ?
+        </div>
+    </div>
+
+    <script>
+        // CONFIG ICI
+        const ouverture = new Date();
+        ouverture.setDate(ouverture.getDate() + 1); // DEMAIN
+        ouverture.setHours(6, 0, 0, 0); // 6H00
+        
+        const fermeture = new Date(ouverture);
+        fermeture.setHours(8, 0, 0, 0); // 8H00
+
+        let stock = 10;
+        let stockInterval;
+        const placesEl = document.getElementById('places');
+        const warningEl = document.getElementById('warning');
+
+        function updateTimer() {
+            const now = new Date();
+            const statusEl = document.getElementById('status');
+            const timerEl = document.getElementById('timer');
+            const phoneBtn = document.getElementById('phoneBtn');
+            const ouvertDiv = document.getElementById('ouvert');
+            const fermeDiv = document.getElementById('ferme');
+
+            // AVANT 6H00
+            if (now < ouverture) {
+                const diff = ouverture - now;
+                statusEl.textContent = 'OUVERTURE DANS';
+                timerEl.textContent = formatTime(diff);
+                timerEl.classList.add('blink');
+                phoneBtn.style.pointerEvents = 'none';
+                phoneBtn.style.opacity = '0.3';
+                phoneBtn.style.animation = 'none';
+            }
+            // ENTRE 6H00 ET 8H00
+            else if (now >= ouverture && now < fermeture && stock > 0) {
+                const diff = fermeture - now;
+                statusEl.textContent = 'FERMETURE DANS';
+                timerEl.textContent = formatTime(diff);
+                timerEl.classList.remove('blink');
+                timerEl.style.color = '#00FF00';
+                phoneBtn.style.pointerEvents = 'auto';
+                phoneBtn.style.opacity = '1';
+                
+                // LANCE LE COMPTEUR DE PÉNURIE UNE SEULE FOIS
+                if (!stockInterval) startStockCountdown();
+            }
+            // APRÈS 8H00 OU STOCK = 0
+            else {
+                ouvertDiv.style.display = 'none';
+                fermeDiv.style.display = 'block';
+                clearInterval(interval);
+                clearInterval(stockInterval);
+            }
+        }
+
+        function startStockCountdown() {
+            // Décrémente 1 place toutes les 12min = 10 places en 2h
+            // Ou plus agressif : toutes les 6min = rupture en 1h
+            const tempsParPlace = (fermeture - ouverture) / 10; // 12min par place
+            
+            stockInterval = setInterval(() => {
+                if (stock > 0) {
+                    stock--;
+                    placesEl.textContent = stock;
+                    
+                    // EFFETS PSY
+                    if (stock <= 3) {
+                        warningEl.textContent = 'DERNIÈRES PIÈCES';
+                        placesEl.style.color = '#8B0000';
+                        document.body.style.animation = 'blink 0.5s 2';
+                    }
+                    if (stock === 0) {
+                        document.getElementById('ouvert').style.display = 'none';
+                        document.getElementById('ferme').style.display = 'block';
+                        clearInterval(stockInterval);
+                    }
+                }
+            }, tempsParPlace);
+        }
+
+        function formatTime(ms) {
+            let seconds = Math.floor(ms / 1000);
+            let hours = Math.floor(seconds / 3600);
+            seconds %= 3600;
+            let minutes = Math.floor(seconds / 60);
+            seconds %= 60;
+            return `${String(hours).padStart(2,'0')}:${String(minutes).padStart(2,'0')}:${String(seconds).padStart(2,'0')}`;
+        }
+
+        const interval = setInterval(updateTimer, 1000);
+        updateTimer();
+    </script>
+</body>
+</html>
